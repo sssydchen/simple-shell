@@ -42,14 +42,11 @@ int builtin_cd(int argc, char **argv)
     }
 
     int status = chdir(path);
-    if (status == 0)
-    {
-        printf("Present directory changed to: %s\n", path);
-    }
-    else
+    if (status == 1)
     {
         fprintf(stderr, "cd: %s\n", strerror(errno));
     }
+
     return status;
 }
 
@@ -62,7 +59,8 @@ int builtin_pwd(int argc, char **argv)
         fprintf(stderr, "Could not determine present working directory\n");
         return 1;
     }
-    printf("Present working directory: %s\n", buffer);
+    printf("%s\n", path);
+    fflush(stdout);
     return 0;
 }
 
@@ -85,23 +83,29 @@ int builtin_exit(int argc, char **argv)
 
 int execute_command(int argc, char **argv)
 {
-    int status = -1;
-    char *built_in_commands[] = {"cd", "pwd", "exit"};
+    char *builtin_commands[] = {"cd", "pwd", "exit"};
 
-    if (strcmp(argv[0], built_in_commands[0]) == 0)
+    int (*builtin_functions[])(int, char **) = {&builtin_cd, &builtin_pwd, &builtin_exit};
+
+    if (argv[0] == NULL)
     {
-        status = builtin_cd(argc, argv);
-    }
-    else if (strcmp(argv[0], built_in_commands[1]) == 0)
-    {
-        status = builtin_pwd(argc, argv);
-    }
-    else if (strcmp(argv[0], built_in_commands[2]) == 0)
-    {
-        status = builtin_exit(argc, argv);
+        return -1;
     }
 
-    return status;
+    for (int i = 0; i < sizeof(builtin_commands) / sizeof(char *); i++)
+    {
+        if (strcmp(argv[0], builtin_commands[i]) == 0)
+        {
+            return ((*builtin_functions[i])(argc, argv));
+        }
+    }
+
+    /*
+        TODO: Add code here to create new process for external commands.
+        Instead of returning -1, call the function that will create a new process
+        executing external commands.
+    */
+    return 1;
 }
 
 int main(int argc, char **argv)
