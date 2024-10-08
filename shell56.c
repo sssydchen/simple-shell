@@ -81,6 +81,26 @@ int builtin_exit(int argc, char **argv)
     }
 }
 
+int builtex(int argc, char **argv)
+{
+    pid_t pid = fork(); 
+    if (pid == 0) {
+        if (execvp(argv[0], argv) == -1) {
+            fprintf(stderr, "%s: %s\n", argv[0], strerror(errno));
+            exit(EXIT_FAILURE);
+        }
+    } else if (pid < 0) {
+        fprintf(stderr, "Fork failed: %s\n", strerror(errno));
+        return -1;
+    } else {
+        int status;
+        waitpid(pid, &status, 0); 
+        return WEXITSTATUS(status); 
+    }
+    return 1; 
+}
+
+
 int execute_command(int argc, char **argv)
 {
     char *builtin_commands[] = {"cd", "pwd", "exit"};
@@ -105,7 +125,7 @@ int execute_command(int argc, char **argv)
         Instead of returning -1, call the function that will create a new process
         executing external commands.
     */
-    return 1;
+    return builtex(argc, argv);
 }
 
 int main(int argc, char **argv)
