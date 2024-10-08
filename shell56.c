@@ -84,29 +84,36 @@ int builtin_exit(int argc, char **argv)
 int builtex(int argc, char **argv)
 {
     pid_t pid = fork(); // create a new process
-    if (pid == 0) { // child process
+    if (pid == 0)
+    {                            // child process
         signal(SIGINT, SIG_DFL); // restore SIGINT in child processes
-        if (execvp(argv[0], argv) == -1) {
+        if (execvp(argv[0], argv) == -1)
+        {
             fprintf(stderr, "%s: %s\n", argv[0], strerror(errno));
             exit(EXIT_FAILURE);
         }
-    } else if (pid < 0) { // fork failure
+    }
+    else if (pid < 0)
+    { // fork failure
         fprintf(stderr, "Fork failed: %s\n", strerror(errno));
         return -1;
-    } else { // parent process
+    }
+    else
+    { // parent process
         int status;
-        do {
+        do
+        {
             waitpid(pid, &status, WUNTRACED);
         } while (!WIFEXITED(status) && !WIFSIGNALED(status));
-        return WEXITSTATUS(status); 
+        return WEXITSTATUS(status);
     }
-    return 1; 
+    return 1;
 }
 
 void handle_special_variable(char **tokens, int n_tokens, int exit_status) // pass a copy of exit_status (pass by value read-only)
 {
-    char qbuf[16]; 
-    sprintf(qbuf, "%d", exit_status); 
+    char qbuf[16];
+    sprintf(qbuf, "%d", exit_status);
 
     for (int i = 0; i < n_tokens; i++)
     {
@@ -117,21 +124,17 @@ void handle_special_variable(char **tokens, int n_tokens, int exit_status) // pa
     }
 }
 
-
 int execute_command(int argc, char **argv, int *exit_status)
 {
     char *builtin_commands[] = {"cd", "pwd", "exit"};
 
     int (*builtin_functions[])(int, char **) = {&builtin_cd, &builtin_pwd, &builtin_exit};
 
-    if (argv[0] == NULL)
-    {
-        return -1;
-    }
+    int status = 1;
 
-    for (int i = 0; i < sizeof(builtin_commands) / sizeof(char *); i++)
+    if (argv[0] != NULL)
     {
-        if (strcmp(argv[0], builtin_commands[i]) == 0)
+        for (int i = 0; i < sizeof(builtin_commands) / sizeof(char *); i++)
         {
             *exit_status = (*builtin_functions[i])(argc, argv);
             return *exit_status;
