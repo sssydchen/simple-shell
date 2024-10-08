@@ -103,8 +103,22 @@ int builtex(int argc, char **argv)
     return 1; 
 }
 
+void handle_special_variable(char **tokens, int n_tokens, int exit_status) // pass a copy of exit_status (pass by value read-only)
+{
+    char qbuf[16]; 
+    sprintf(qbuf, "%d", exit_status); 
 
-int execute_command(int argc, char **argv)
+    for (int i = 0; i < n_tokens; i++)
+    {
+        if (strcmp(tokens[i], "$?") == 0)
+        {
+            tokens[i] = strdup(qbuf); // strdup allocates memory and copies the content of qbuf into that new memory
+        }
+    }
+}
+
+
+int execute_command(int argc, char **argv, int *exit_status)
 {
     char *builtin_commands[] = {"cd", "pwd", "exit"};
 
@@ -119,7 +133,8 @@ int execute_command(int argc, char **argv)
     {
         if (strcmp(argv[0], builtin_commands[i]) == 0)
         {
-            return ((*builtin_functions[i])(argc, argv));
+            *exit_status = (*builtin_functions[i])(argc, argv);
+            return *exit_status;
         }
     }
 
@@ -128,13 +143,15 @@ int execute_command(int argc, char **argv)
         Instead of returning -1, call the function that will create a new process
         executing external commands.
     */
-    return builtex(argc, argv);
+    *exit_status = builtex(argc, argv);
+    return *exit_status;
 }
 
 int main(int argc, char **argv)
 {
     bool interactive = isatty(STDIN_FILENO); /* see: man 3 isatty */
     FILE *fp = stdin;
+    int exit_status = 0;
 
     if (argc == 2)
     {
@@ -191,7 +208,8 @@ int main(int argc, char **argv)
         // printf("\n");
         if (n_tokens > 0)
         {
-            execute_command(n_tokens, tokens);
+            handle_special_variable(tokens, n_tokens, exit_status);
+            execute_command(n_tokens, tokens, &exit_status);
         }
     }
 
