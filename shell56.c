@@ -83,18 +83,21 @@ int builtin_exit(int argc, char **argv)
 
 int builtex(int argc, char **argv)
 {
-    pid_t pid = fork(); 
-    if (pid == 0) {
+    pid_t pid = fork(); // create a new process
+    if (pid == 0) { // child process
+        signal(SIGINT, SIG_DFL); // restore SIGINT in child processes
         if (execvp(argv[0], argv) == -1) {
             fprintf(stderr, "%s: %s\n", argv[0], strerror(errno));
             exit(EXIT_FAILURE);
         }
-    } else if (pid < 0) {
+    } else if (pid < 0) { // fork failure
         fprintf(stderr, "Fork failed: %s\n", strerror(errno));
         return -1;
-    } else {
+    } else { // parent process
         int status;
-        waitpid(pid, &status, 0); 
+        do {
+            waitpid(pid, &status, WUNTRACED);
+        } while (!WIFEXITED(status) && !WIFSIGNALED(status));
         return WEXITSTATUS(status); 
     }
     return 1; 
