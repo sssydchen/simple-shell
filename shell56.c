@@ -42,7 +42,7 @@ int builtin_cd(int argc, char **argv)
     }
 
     int status = chdir(path);
-    if (status == 1)
+    if (status == -1)
     {
         fprintf(stderr, "cd: %s\n", strerror(errno));
     }
@@ -81,7 +81,7 @@ int builtin_exit(int argc, char **argv)
     }
 }
 
-int builtex(int argc, char **argv)
+int exec_external_command(int argc, char **argv)
 {
     pid_t pid = fork(); // create a new process
     if (pid == 0)
@@ -96,7 +96,6 @@ int builtex(int argc, char **argv)
     else if (pid < 0)
     { // fork failure
         fprintf(stderr, "Fork failed: %s\n", strerror(errno));
-        return -1;
     }
     else
     { // parent process
@@ -124,30 +123,48 @@ void handle_special_variable(char **tokens, int n_tokens, int exit_status) // pa
     }
 }
 
-int execute_command(int argc, char **argv, int *exit_status)
+int execute_command(int argc, char **argv)
 {
     char *builtin_commands[] = {"cd", "pwd", "exit"};
 
     int (*builtin_functions[])(int, char **) = {&builtin_cd, &builtin_pwd, &builtin_exit};
 
-    int status = 1;
-
     if (argv[0] != NULL)
     {
         for (int i = 0; i < sizeof(builtin_commands) / sizeof(char *); i++)
         {
-            *exit_status = (*builtin_functions[i])(argc, argv);
-            return *exit_status;
+            if (strcmp(builtin_commands[i], argv[0]) == 0)
+            {
+                return (*builtin_functions[i])(argc, argv);
+            }
+        }
+
+        return exec_external_command(argc, argv);
+    }
+
+    return 1;
+}
+
+int exec_pipes(int **argv)
+{
+    // TODO: Code to execute pipelines.
+    return 1;
+}
+
+int check_and_update_pipes(int n_tokens, char *tokens[])
+{
+    int pipes_present = 1;
+
+    for (int i = 0; i < n_tokens; i++)
+    {
+        if (strcmp(tokens[i], "|") == 0)
+        {
+            tokens[i] = NULL;
+            pipes_present = 0;
         }
     }
 
-    /*
-        TODO: Add code here to create new process for external commands.
-        Instead of returning -1, call the function that will create a new process
-        executing external commands.
-    */
-    *exit_status = builtex(argc, argv);
-    return *exit_status;
+    return pipes_present; // return 0 if pipes present, otherwise return 1.
 }
 
 int main(int argc, char **argv)
@@ -212,7 +229,8 @@ int main(int argc, char **argv)
         if (n_tokens > 0)
         {
             handle_special_variable(tokens, n_tokens, exit_status);
-            execute_command(n_tokens, tokens, &exit_status);
+            check_and_update_pipes(n_tokens, tokens);
+            exit_status = execute_command(n_tokens, tokens);
         }
     }
 
