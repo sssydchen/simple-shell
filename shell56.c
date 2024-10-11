@@ -81,12 +81,91 @@ int builtin_exit(int argc, char **argv)
     }
 }
 
+int redirect(char **argv, int *argc)
+{
+    int input_fd = -1, output_fd = -1; // initialize two variables to store file descriptors for input and output redirection
+
+    for (int i = 0; i < *argc; i++)
+    {
+        if (strcmp(argv[i], "<") == 0) // input redirection
+        {
+
+            if (i + 1 < *argc)
+            {
+                input_fd = open(argv[i + 1], O_RDONLY); // O_RDONLY: read-only flag
+                if (input_fd == -1)
+                {
+                    fprintf(stderr, "Unable to open %s \n", argv[i + 1], strerror(errno));
+                    return -1;
+                }
+                dup2(input_fd, STDIN_FILENO); // duplicate input_fd to standard input, redirecting input from the file
+                close(input_fd);
+
+                // remove the < and the filename from argv
+                for (int j = i; j < *argc - 2; j++)
+                {
+                    argv[j] = argv[j + 2];
+                }
+                *argc -= 2;
+                i--;
+            }
+            else
+            {
+                fprintf(stderr, "Expected filename after '<'\n");
+                return -1;
+            }
+        }
+        else if (strcmp(argv[i], ">") == 0) // output redirection
+        {
+
+            if (i + 1 < *argc)
+            {
+                /**
+                 * O_WRONLY: Opens the file in write-only mode
+                 * O_CREAT: If the file does not exist, create the file
+                 * O_TRUNC: If the file already exists, truncates it (clears its content) to zero length before writing new data
+                 * 0644: file permission mode required for setting file permissions on new files, provides write access to the owner and read access to others
+                 */
+                output_fd = open(argv[i + 1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (output_fd == -1)
+                {
+
+                    fprintf(stderr, "Unable to open file %s \n");
+                    return -1;
+                }
+                dup2(output_fd, STDOUT_FILENO); // duplicate output_fd to standard output, redirecting output to the file
+                close(output_fd);
+
+                for (int j = i; j < *argc - 2; j++)
+                {
+                    argv[j] = argv[j + 2];
+                }
+                *argc -= 2;
+                i--;
+            }
+            else
+            {
+                fprintf(stderr, "Expected filename after '>'\n");
+                return -1;
+            }
+        }
+    }
+
+    argv[*argc] = NULL;
+    return 0;
+}
+
 int exec_external_command(int argc, char **argv)
 {
     pid_t pid = fork(); // create a new process
     if (pid == 0)
     {                            // child process
         signal(SIGINT, SIG_DFL); // restore SIGINT in child processes
+
+        if (redirect(argv, &argc) == -1)
+        { // redirection
+            exit(EXIT_FAILURE);
+        }
         if (execvp(argv[0], argv) == -1)
         {
             fprintf(stderr, "%s: %s\n", argv[0], strerror(errno));
@@ -96,6 +175,7 @@ int exec_external_command(int argc, char **argv)
     else if (pid < 0)
     { // fork failure
         fprintf(stderr, "Fork failed: %s\n", strerror(errno));
+        return -1;
     }
     else
     { // parent process
