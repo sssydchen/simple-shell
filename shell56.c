@@ -15,6 +15,8 @@
 
 /* "" means check the local directory */
 #include "parser.h"
+#include "builtin_commands.h"
+#include "utilities.h"
 
 /* you'll need these includes later: */
 #include <sys/types.h>
@@ -22,64 +24,6 @@
 #include <signal.h>
 #include <fcntl.h>
 #include <linux/limits.h>
-
-int builtin_cd(int argc, char **argv)
-{
-    char *path = NULL;
-
-    if (argc == 1)
-    {
-        path = getenv("HOME");
-    }
-    else if (argc == 2)
-    {
-        path = argv[1];
-    }
-    else
-    {
-        fprintf(stderr, "cd: wrong number of arguments\n");
-        return 1;
-    }
-
-    int status = chdir(path);
-    if (status == -1)
-    {
-        fprintf(stderr, "cd: %s\n", strerror(errno));
-    }
-
-    return status;
-}
-
-int builtin_pwd(int argc, char **argv)
-{
-    char buffer[PATH_MAX];
-    char *path = getcwd(buffer, sizeof(buffer));
-    if (path == NULL)
-    {
-        fprintf(stderr, "Could not determine present working directory\n");
-        return 1;
-    }
-    printf("%s\n", path);
-    fflush(stdout);
-    return 0;
-}
-
-int builtin_exit(int argc, char **argv)
-{
-    if (argc == 1)
-    {
-        exit(0);
-    }
-    else if (argc == 2)
-    {
-        exit(atoi(argv[1]));
-    }
-    else
-    {
-        fprintf(stderr, "exit: too many arguments\n");
-        return 1;
-    }
-}
 
 int redirect(char **argv, int *argc)
 {
@@ -189,20 +133,6 @@ int exec_external_command(int argc, char **argv)
     return 1;
 }
 
-void handle_special_variable(char **tokens, int n_tokens, int exit_status) // pass a copy of exit_status (pass by value read-only)
-{
-    char qbuf[16];
-    sprintf(qbuf, "%d", exit_status);
-
-    for (int i = 0; i < n_tokens; i++)
-    {
-        if (strcmp(tokens[i], "$?") == 0)
-        {
-            tokens[i] = strdup(qbuf); // strdup allocates memory and copies the content of qbuf into that new memory
-        }
-    }
-}
-
 int execute_command(int argc, char **argv)
 {
     char *builtin_commands[] = {"cd", "pwd", "exit"};
@@ -225,26 +155,21 @@ int execute_command(int argc, char **argv)
     return 1;
 }
 
-int exec_pipes(int **argv)
+void extract_commands(int argc, char **argv, char **commands[])
 {
     // TODO: Code to execute pipelines.
-    return 1;
-}
+    int start = 0;
+    int pipe_idx = 0;
 
-int check_and_update_pipes(int n_tokens, char *tokens[])
-{
-    int pipes_present = 1;
-
-    for (int i = 0; i < n_tokens; i++)
+    for (int i = 0; i <= argc; i++)
     {
-        if (strcmp(tokens[i], "|") == 0)
+        if (argv[i] == NULL)
         {
-            tokens[i] = NULL;
-            pipes_present = 0;
+            commands[pipe_idx] = &argv[start];
+            pipe_idx++;
+            start = i + 1;
         }
     }
-
-    return pipes_present; // return 0 if pipes present, otherwise return 1.
 }
 
 int main(int argc, char **argv)
@@ -309,8 +234,20 @@ int main(int argc, char **argv)
         if (n_tokens > 0)
         {
             handle_special_variable(tokens, n_tokens, exit_status);
-            check_and_update_pipes(n_tokens, tokens);
-            exit_status = execute_command(n_tokens, tokens);
+            int total_pipes = check_and_update_pipes(n_tokens, tokens);
+            if (total_pipes > 0)
+            {
+                char **commands[total_pipes + 1];
+                extract_commands(n_tokens, tokens, commands);
+                // printf("%s\n", *commands[0]);
+                // printf("%s\n", *commands[1]);
+                one_pipe(total_pipes, commands);
+                // printf("%d\n", total_pipes);
+            }
+            else
+            {
+                exit_status = execute_command(n_tokens, tokens);
+            }
         }
     }
 
