@@ -49,11 +49,8 @@ int extract_commands(int argc, char **argv, char **commands[], int start[], int 
     return command_idx;
 }
 
-void handle_special_variable(char *tokens[], int n_tokens, int exit_status) // pass a copy of exit_status (pass by value read-only)
+void handle_special_variable(char *tokens[], int n_tokens, char qbuf[]) // pass a copy of exit_status (pass by value read-only)
 {
-    char qbuf[16];
-    sprintf(qbuf, "%d", exit_status);
-
     for (int i = 0; i < n_tokens; i++)
     {
         if (strcmp(tokens[i], "$?") == 0)

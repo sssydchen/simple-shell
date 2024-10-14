@@ -106,10 +106,10 @@ int exec_external_command(int argc, char **argv)
     {                            // child process
         signal(SIGINT, SIG_DFL); // restore SIGINT in child processes
 
-        // if (redirect(argv, &argc) == -1)
-        // { // redirection
-        //     exit(EXIT_FAILURE);
-        // }
+        if (redirect(argv, &argc) == -1)
+        { // redirection
+            exit(EXIT_FAILURE);
+        }
         if (execvp(argv[0], argv) == -1)
         {
             fprintf(stderr, "%s: %s\n", argv[0], strerror(errno));
@@ -159,7 +159,6 @@ int main(int argc, char **argv)
 {
     bool interactive = isatty(STDIN_FILENO); /* see: man 3 isatty */
     FILE *fp = stdin;
-    int exit_status = 0;
 
     if (argc == 2)
     {
@@ -180,6 +179,9 @@ int main(int argc, char **argv)
     char line[1024], linebuf[1024];
     const int max_tokens = 32;
     char *tokens[max_tokens];
+    char qbuf[16];
+    int exit_status = 0;
+    sprintf(qbuf, "%d", exit_status);
 
     /* loop:
      *   if interactive: print prompt
@@ -216,7 +218,7 @@ int main(int argc, char **argv)
         // printf("\n");
         if (n_tokens > 0)
         {
-            handle_special_variable(tokens, n_tokens, exit_status);
+            handle_special_variable(tokens, n_tokens, qbuf);
             if (is_pipe_present(n_tokens, tokens) == 0)
             {
                 char **commands[10];
@@ -241,6 +243,7 @@ int main(int argc, char **argv)
             {
                 exit_status = execute_command(n_tokens, tokens);
             }
+            sprintf(qbuf, "%d", exit_status);
         }
     }
 
