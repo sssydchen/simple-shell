@@ -29,7 +29,7 @@ int is_pipe_present(int n_tokens, char *tokens[])
     return 1; // return 0 if pipes present, otherwise return 1.
 }
 
-int extract_commands(int argc, char **argv, char **commands[], int start[], int len[])
+int extract_commands(int argc, char **argv, int start[], int end[])
 {
     int start_idx = 0;
     int command_idx = 0;
@@ -39,9 +39,8 @@ int extract_commands(int argc, char **argv, char **commands[], int start[], int 
         if ((i == argc) || strcmp(argv[i], "|") == 0)
         {
             argv[i] = NULL;
-            commands[command_idx] = &argv[start_idx];
             start[command_idx] = start_idx;
-            len[command_idx] = i - start_idx;
+            end[command_idx] = i; // includes the NULL token.
             command_idx++;
             start_idx = i + 1;
         }
@@ -61,7 +60,81 @@ void handle_special_variable(char *tokens[], int n_tokens, char qbuf[]) // pass 
     }
 }
 
-int exec_pipes(int commandc, char **commands[])
+int redirect(char **argv, int *argc)
+{
+    int input_fd = -1, output_fd = -1; // initialize two variables to store file descriptors for input and output redirection
+
+    for (int i = 0; i < *argc; i++)
+    {
+        if (strcmp(argv[i], "<") == 0) // input redirection
+        {
+
+            if (i + 1 < *argc)
+            {
+                input_fd = open(argv[i + 1], O_RDONLY); // O_RDONLY: read-only flag
+                if (input_fd == -1)
+                {
+                    fprintf(stderr, "Unable to open %s: %s\n", argv[i + 1], strerror(errno));
+                    return -1;
+                }
+                dup2(input_fd, STDIN_FILENO); // duplicate input_fd to standard input, redirecting input from the file
+                close(input_fd);
+
+                // remove the < and the filename from argv
+                for (int j = i; j < *argc - 2; j++)
+                {
+                    argv[j] = argv[j + 2];
+                }
+                *argc -= 2;
+                i--;
+            }
+            else
+            {
+                fprintf(stderr, "Expected filename after '<'\n");
+                return -1;
+            }
+        }
+        else if (strcmp(argv[i], ">") == 0) // output redirection
+        {
+
+            if (i + 1 < *argc)
+            {
+                /**
+                 * O_WRONLY: Opens the file in write-only mode
+                 * O_CREAT: If the file does not exist, create the file
+                 * O_TRUNC: If the file already exists, truncates it (clears its content) to zero length before writing new data
+                 * 0644: file permission mode required for setting file permissions on new files, provides write access to the owner and read access to others
+                 */
+                output_fd = open(argv[i + 1], O_WRONLY | O_CREAT | O_TRUNC, 0644);
+                if (output_fd == -1)
+                {
+
+                    fprintf(stderr, "Unable to open file %s: %s \n", argv[i + 1], strerror(errno));
+                    return -1;
+                }
+                dup2(output_fd, STDOUT_FILENO); // duplicate output_fd to standard output, redirecting output to the file
+                close(output_fd);
+
+                for (int j = i; j < *argc - 2; j++)
+                {
+                    argv[j] = argv[j + 2];
+                }
+                *argc -= 2;
+                i--;
+            }
+            else
+            {
+                fprintf(stderr, "Expected filename after '>'\n");
+                return -1;
+            }
+        }
+    }
+
+    argv[*argc] = NULL;
+    return 0;
+}
+
+int exec_pipes(int commandc, char **argv, int start[], int end[])
 {
     int status;
     int pipes_count = commandc - 1;
@@ -99,9 +172,16 @@ int exec_pipes(int commandc, char **commands[])
                 close(fd[i]);
             }
 
-            if (execvp(*commands[i], commands[i]) == -1)
+            int argc = end[i] - start[i];
+            // int *argc_ptr = &argc;
+            if (redirect(&argv[start[i]], &argc) < 0)
             {
-                fprintf(stderr, "%s: %s\n", *commands[i], strerror(errno));
+                exit(EXIT_FAILURE);
+            }
+
+            if (execvp(argv[start[i]], &argv[start[i]]) == -1)
+            {
+                fprintf(stderr, "%s: %s\n", argv[start[i]], strerror(errno));
                 exit(EXIT_FAILURE);
             }
         }

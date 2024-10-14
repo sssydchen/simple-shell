@@ -64,7 +64,7 @@ int builtin_exit(int argc, char **argv)
     }
     else
     {
-        fprintf(stderr, "exit: too many arguments");
+        fprintf(stderr, "exit: too many arguments\n");
         return 1;
     }
 }
