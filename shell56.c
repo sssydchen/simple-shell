@@ -39,7 +39,7 @@ int redirect(char **argv, int *argc)
                 input_fd = open(argv[i + 1], O_RDONLY); // O_RDONLY: read-only flag
                 if (input_fd == -1)
                 {
-                    fprintf(stderr, "Unable to open %s \n", argv[i + 1], strerror(errno));
+                    fprintf(stderr, "Unable to open %s: %s\n", argv[i + 1], strerror(errno));
                     return -1;
                 }
                 dup2(input_fd, STDIN_FILENO); // duplicate input_fd to standard input, redirecting input from the file
@@ -74,7 +74,7 @@ int redirect(char **argv, int *argc)
                 if (output_fd == -1)
                 {
 
-                    fprintf(stderr, "Unable to open file %s \n");
+                    fprintf(stderr, "Unable to open file %s: %s \n", argv[i + 1], strerror(errno));
                     return -1;
                 }
                 dup2(output_fd, STDOUT_FILENO); // duplicate output_fd to standard output, redirecting output to the file
@@ -106,10 +106,10 @@ int exec_external_command(int argc, char **argv)
     {                            // child process
         signal(SIGINT, SIG_DFL); // restore SIGINT in child processes
 
-        if (redirect(argv, &argc) == -1)
-        { // redirection
-            exit(EXIT_FAILURE);
-        }
+        // if (redirect(argv, &argc) == -1)
+        // { // redirection
+        //     exit(EXIT_FAILURE);
+        // }
         if (execvp(argv[0], argv) == -1)
         {
             fprintf(stderr, "%s: %s\n", argv[0], strerror(errno));
@@ -119,7 +119,7 @@ int exec_external_command(int argc, char **argv)
     else if (pid < 0)
     { // fork failure
         fprintf(stderr, "Fork failed: %s\n", strerror(errno));
-        return -1;
+        exit(EXIT_FAILURE);
     }
     else
     { // parent process
@@ -145,7 +145,7 @@ int execute_command(int argc, char **argv)
         {
             if (strcmp(builtin_commands[i], argv[0]) == 0)
             {
-                return (*builtin_functions[i])(argc, argv);
+                return (*builtin_functions[i])(argc, argv); // return 0 for success, 1 otherwise.
             }
         }
 
@@ -153,23 +153,6 @@ int execute_command(int argc, char **argv)
     }
 
     return 1;
-}
-
-void extract_commands(int argc, char **argv, char **commands[])
-{
-    // TODO: Code to execute pipelines.
-    int start = 0;
-    int pipe_idx = 0;
-
-    for (int i = 0; i <= argc; i++)
-    {
-        if (argv[i] == NULL)
-        {
-            commands[pipe_idx] = &argv[start];
-            pipe_idx++;
-            start = i + 1;
-        }
-    }
 }
 
 int main(int argc, char **argv)
@@ -234,15 +217,25 @@ int main(int argc, char **argv)
         if (n_tokens > 0)
         {
             handle_special_variable(tokens, n_tokens, exit_status);
-            int total_pipes = check_and_update_pipes(n_tokens, tokens);
-            if (total_pipes > 0)
+            if (is_pipe_present(n_tokens, tokens) == 0)
             {
-                char **commands[total_pipes + 1];
-                extract_commands(n_tokens, tokens, commands);
-                // printf("%s\n", *commands[0]);
-                // printf("%s\n", *commands[1]);
-                one_pipe(total_pipes, commands);
-                // printf("%d\n", total_pipes);
+                char **commands[10];
+                int start[10];
+                int len[10];
+                int commandc = extract_commands(n_tokens, tokens, commands, start, len);
+                int is_valid = 1;
+
+                for (int i = 0; i < commandc; i++)
+                {
+                    if (len[i] == 0)
+                    {
+                        is_valid = 0;
+                    }
+                }
+                if (is_valid == 1)
+                {
+                    exit_status = exec_pipes(commandc, commands);
+                }
             }
             else
             {

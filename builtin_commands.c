@@ -28,13 +28,14 @@ int builtin_cd(int argc, char **argv)
         return 1;
     }
 
-    int status = chdir(path);
-    if (status == -1)
+    int res = chdir(path);
+    if (res < 0)
     {
         fprintf(stderr, "cd: %s\n", strerror(errno));
+        return 1;
     }
 
-    return status;
+    return 0;
 }
 
 int builtin_pwd(int argc, char **argv)
@@ -63,7 +64,7 @@ int builtin_exit(int argc, char **argv)
     }
     else
     {
-        fprintf(stderr, "exit: too many arguments\n");
+        fprintf(stderr, "exit: too many arguments");
         return 1;
     }
 }
